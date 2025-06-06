@@ -6,6 +6,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const assistantId = process.env.OPENAI_ASSISTANT_ID!;
 
 export async function generateChatResponse(messages: any[], threadId?: string) {
+  // Sanitize threadId if it is the string 'undefined'
+  if (threadId === 'undefined') {
+    console.warn("Received threadId as string 'undefined', converting to undefined.");
+    threadId = undefined;
+  }
+  console.log("Sanitized threadId:", threadId);
+
   try {
     console.log("Starting generateChatResponse with:", {
       threadId,
