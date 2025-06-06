@@ -66,15 +66,15 @@ export function useChat() {
         messageCount: updatedMessages.length,
       });
 
+      const payload: any = { messages: updatedMessages };
+      if (currentThreadId) payload.threadId = currentThreadId;
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: updatedMessages,
-          threadId: currentThreadId,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
