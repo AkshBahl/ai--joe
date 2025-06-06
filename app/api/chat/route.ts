@@ -18,8 +18,14 @@ export async function POST(req: NextRequest) {
       summaryLength,
     })
 
+    // Validate threadId before passing to generateChatResponse
+    let safeThreadId: string | undefined = undefined;
+    if (typeof threadId === 'string' && threadId.startsWith('thread_')) {
+      safeThreadId = threadId;
+    }
+
     // Generate the response using our chat actions
-    const response = await generateChatResponse(messages, threadId)
+    const response = await generateChatResponse(messages, safeThreadId)
 
     // Create a streaming response
     const encoder = new TextEncoder()
