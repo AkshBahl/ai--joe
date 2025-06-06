@@ -3,17 +3,21 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Message } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { generateChatResponse } from "@/app/actions/chat-actions"; // ✅ matches your file
+
+// Helper function to validate threadId
+const isValidThreadId = (id: string | undefined | null): boolean => {
+  return typeof id === 'string' && id.startsWith('thread_');
+};
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [threadId, setThreadId] = useState<string | undefined>(() => {
-    // Initialize from localStorage if available
     if (typeof window !== 'undefined') {
       const storedThreadId = localStorage.getItem('chatThreadId');
       console.log("Initializing threadId from localStorage:", storedThreadId);
-      return storedThreadId || undefined;
+      // Convert null to undefined and validate
+      return isValidThreadId(storedThreadId ?? undefined) ? (storedThreadId ?? undefined) : undefined;
     }
     return undefined;
   });
@@ -24,12 +28,12 @@ export function useChat() {
   // Update localStorage when threadId changes
   useEffect(() => {
     console.log("threadId changed:", threadId);
-    if (threadId) {
+    if (threadId && isValidThreadId(threadId)) {
       localStorage.setItem('chatThreadId', threadId);
       console.log("Stored threadId in localStorage:", threadId);
     } else {
       localStorage.removeItem('chatThreadId');
-      console.log("Removed threadId from localStorage");
+      console.log("Removed invalid threadId from localStorage");
     }
   }, [threadId]);
 
@@ -41,7 +45,9 @@ export function useChat() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    console.log("Starting chat submission with threadId:", threadId);
+    // Validate current threadId
+    const currentThreadId = isValidThreadId(threadId) ? threadId : undefined;
+    console.log("Starting chat submission with threadId:", currentThreadId);
 
     const userMessage: Message = {
       id: uuidv4(),
@@ -56,7 +62,7 @@ export function useChat() {
 
     try {
       console.log("Making API request with:", {
-        threadId,
+        threadId: currentThreadId,
         messageCount: updatedMessages.length,
       });
 
@@ -67,7 +73,7 @@ export function useChat() {
         },
         body: JSON.stringify({
           messages: updatedMessages,
-          threadId,
+          threadId: currentThreadId,
         }),
       });
 
@@ -84,11 +90,12 @@ export function useChat() {
       const newThreadId = response.headers.get('X-Thread-Id');
       console.log("Received threadId from response:", newThreadId);
 
-      if (newThreadId) {
-        console.log("Updating threadId from", threadId, "to", newThreadId);
+      if (newThreadId && isValidThreadId(newThreadId)) {
+        console.log("Updating threadId from", currentThreadId, "to", newThreadId);
         setThreadId(newThreadId);
       } else {
-        console.warn("No threadId received in response headers");
+        console.warn("Invalid or missing threadId in response headers:", newThreadId);
+        setThreadId(undefined);
       }
 
       const reader = response.body?.getReader();
@@ -122,8 +129,9 @@ export function useChat() {
       console.error("Chat submission error:", {
         error: err,
         message: err?.message,
-        threadId,
+        threadId: currentThreadId,
       });
+      // Clear threadId on error
       setThreadId(undefined);
       setMessages((prev) => [
         ...prev,
