@@ -11,7 +11,9 @@ export function useChat() {
   const [threadId, setThreadId] = useState<string | undefined>(() => {
     // Initialize from localStorage if available
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('chatThreadId') || undefined;
+      const storedThreadId = localStorage.getItem('chatThreadId');
+      console.log("Initializing threadId from localStorage:", storedThreadId);
+      return storedThreadId || undefined;
     }
     return undefined;
   });
@@ -21,10 +23,13 @@ export function useChat() {
 
   // Update localStorage when threadId changes
   useEffect(() => {
+    console.log("threadId changed:", threadId);
     if (threadId) {
       localStorage.setItem('chatThreadId', threadId);
+      console.log("Stored threadId in localStorage:", threadId);
     } else {
       localStorage.removeItem('chatThreadId');
+      console.log("Removed threadId from localStorage");
     }
   }, [threadId]);
 
@@ -35,6 +40,8 @@ export function useChat() {
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
+
+    console.log("Starting chat submission with threadId:", threadId);
 
     const userMessage: Message = {
       id: uuidv4(),
@@ -48,25 +55,75 @@ export function useChat() {
     setIsLoading(true);
 
     try {
-      const result = await generateChatResponse(updatedMessages, threadId);
+      console.log("Making API request with:", {
+        threadId,
+        messageCount: updatedMessages.length,
+      });
 
-      if (result?.text) {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: updatedMessages,
+          threadId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("API request failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+        });
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const newThreadId = response.headers.get('X-Thread-Id');
+      console.log("Received threadId from response:", newThreadId);
+
+      if (newThreadId) {
+        console.log("Updating threadId from", threadId, "to", newThreadId);
+        setThreadId(newThreadId);
+      } else {
+        console.warn("No threadId received in response headers");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        console.error("No reader available in response");
+        throw new Error('No reader available');
+      }
+
+      let responseText = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        responseText += new TextDecoder().decode(value);
+      }
+
+      console.log("Received response text length:", responseText.length);
+
+      if (responseText) {
         const assistantMessage: Message = {
           id: uuidv4(),
           role: "assistant",
-          content: result.text,
+          content: responseText,
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
         setLastCompletedAssistantMessage(assistantMessage);
+      } else {
+        console.warn("Received empty response text");
       }
-
-      if (result?.threadId) {
-        setThreadId(result.threadId); // This will now persist to localStorage
-      }
-    } catch (err) {
-      console.error("Assistant error:", err);
-      // If there's an error, clear the threadId to start fresh
+    } catch (err: any) {
+      console.error("Chat submission error:", {
+        error: err,
+        message: err?.message,
+        threadId,
+      });
       setThreadId(undefined);
       setMessages((prev) => [
         ...prev,
@@ -87,10 +144,11 @@ export function useChat() {
 
   // Add a function to reset the chat
   const resetChat = useCallback(() => {
+    console.log("Resetting chat, clearing threadId:", threadId);
     setMessages([]);
     setThreadId(undefined);
     setLastCompletedAssistantMessage(null);
-  }, []);
+  }, [threadId]);
 
   return {
     messages,

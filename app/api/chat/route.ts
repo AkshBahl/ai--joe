@@ -9,16 +9,17 @@ export async function POST(req: NextRequest) {
   try {
     // Get request data
     const body = await req.json()
-    const { messages, vectorRatio = 75, summaryLength = "none" } = body
+    const { messages, threadId, vectorRatio = 75, summaryLength = "none" } = body
 
     console.log("Chat API request received:", {
       messageCount: messages.length,
+      threadId,
       vectorRatio,
       summaryLength,
     })
 
     // Generate the response using our chat actions
-    const response = await generateChatResponse(messages)
+    const response = await generateChatResponse(messages, threadId)
 
     // Create a streaming response
     const encoder = new TextEncoder()
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           // Split the response into chunks for streaming
-          const chunks = response.split(/(?<=\.|\n)/)
+          const chunks = response.text.split(/(?<=\.|\n)/)
           for (const chunk of chunks) {
             if (chunk.trim()) {
               controller.enqueue(encoder.encode(chunk))
@@ -45,11 +46,12 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Return the streaming response
+    // Return the streaming response with threadId
     return new Response(customReadable, {
       headers: {
         "Content-Type": "text/plain",
         "Transfer-Encoding": "chunked",
+        "X-Thread-Id": response.threadId, // Add threadId to headers
       },
     })
   } catch (error: any) {
