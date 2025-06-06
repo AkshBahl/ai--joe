@@ -20,6 +20,7 @@ export default function TextOnlyChat() {
     handleStop,
     handleSubmit,
     isLoading,
+    resetChat
   } = useChat()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -93,6 +94,10 @@ export default function TextOnlyChat() {
   const handleLogout = () => {
     Cookies.remove("isAuthenticated")
     router.push("/login")
+  }
+
+  const handleReset = () => {
+    resetChat();
   }
 
   return (

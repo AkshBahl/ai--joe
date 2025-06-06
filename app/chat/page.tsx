@@ -19,7 +19,7 @@ import Cookies from "js-cookie"
 type ChatMode = "text-only" | "avatar" | null
 
 export default function ChatPage() {
-  const { messages, input, handleInputChange, handleStop, handleSubmit, isLoading, lastCompletedAssistantMessage } =
+  const { messages, input, handleInputChange, handleStop, handleSubmit, isLoading, lastCompletedAssistantMessage, resetChat } =
     useChat()
 
   const isMobile = useIsMobile()
@@ -109,10 +109,11 @@ export default function ChatPage() {
   }
 
   const handleReset = () => {
-    setHasInteracted(false)
-    setChatMode(null)
+    resetChat();
+    setHasInteracted(false);
+    setChatMode(null);
     if (avatarRef.current?.cancel) {
-      avatarRef.current.cancel()
+      avatarRef.current.cancel();
     }
   }
 

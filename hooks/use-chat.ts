@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Message } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { generateChatResponse } from "@/app/actions/chat-actions"; // ✅ matches your file
@@ -8,10 +8,25 @@ import { generateChatResponse } from "@/app/actions/chat-actions"; // ✅ matche
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  const [threadId, setThreadId] = useState<string | undefined>(() => {
+    // Initialize from localStorage if available
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('chatThreadId') || undefined;
+    }
+    return undefined;
+  });
   // ✅ memory per refresh
   const [isLoading, setIsLoading] = useState(false);
   const [lastCompletedAssistantMessage, setLastCompletedAssistantMessage] = useState<Message | null>(null);
+
+  // Update localStorage when threadId changes
+  useEffect(() => {
+    if (threadId) {
+      localStorage.setItem('chatThreadId', threadId);
+    } else {
+      localStorage.removeItem('chatThreadId');
+    }
+  }, [threadId]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -46,17 +61,19 @@ export function useChat() {
         setLastCompletedAssistantMessage(assistantMessage);
       }
 
-      if (result?.threadId && !threadId) {
-        setThreadId(result.threadId); // ✅ store thread ID for session
+      if (result?.threadId) {
+        setThreadId(result.threadId); // This will now persist to localStorage
       }
     } catch (err) {
       console.error("Assistant error:", err);
+      // If there's an error, clear the threadId to start fresh
+      setThreadId(undefined);
       setMessages((prev) => [
         ...prev,
         {
           id: uuidv4(),
           role: "assistant",
-          content: "Something went wrong. Try again.",
+          content: "Something went wrong. Starting a new conversation.",
         },
       ]);
     } finally {
@@ -68,6 +85,13 @@ export function useChat() {
     setIsLoading(false);
   }, []);
 
+  // Add a function to reset the chat
+  const resetChat = useCallback(() => {
+    setMessages([]);
+    setThreadId(undefined);
+    setLastCompletedAssistantMessage(null);
+  }, []);
+
   return {
     messages,
     input,
@@ -77,5 +101,6 @@ export function useChat() {
     isLoading,
     lastCompletedAssistantMessage,
     threadId,
+    resetChat, // Export the reset function
   };
 }
